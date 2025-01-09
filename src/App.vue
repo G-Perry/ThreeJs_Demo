@@ -63,9 +63,10 @@ function init() {
   addDirectionalLights()
 }
 function loadModel() {
-  const loader = new GLTFLoader().setPath("./threeJsModel/gltf/");
+  const loader = new GLTFLoader().setPath("./threeJsModel/");
 
-  loader.load("server_box.glb", (gltf) => {
+  // loader.load("server_box.glb", (gltf) => {
+  loader.load("server_room.glb", (gltf) => {
     const model = gltf.scene;
     mixer = new THREE.AnimationMixer(model);
     const animations = gltf.animations;
