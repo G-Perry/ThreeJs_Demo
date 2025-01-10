@@ -66,7 +66,8 @@ function loadModel() {
   const loader = new GLTFLoader().setPath("./threeJsModel/");
 
   // loader.load("server_box.glb", (gltf) => {
-  loader.load("server_room.glb", (gltf) => {
+  // loader.load("server_room.glb", (gltf) => {
+  loader.load("serverRoom.glb", (gltf) => {
     const model = gltf.scene;
     mixer = new THREE.AnimationMixer(model);
     const animations = gltf.animations;
