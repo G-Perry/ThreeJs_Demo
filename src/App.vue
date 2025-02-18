@@ -10,10 +10,10 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 let container, width, height; //threejs容器、宽、高
 let scene, camera, renderer, controls, clock;//场景、相机、渲染器、轨道控制器、时钟
-let model, skeleton, mixer;
-let idleAction, walkAction, runAction;
+let model, skeleton, mixer; // 模型、骨骼、动画混合器
+let idleAction, walkAction, runAction; // 动画动作
 let idleWeight, walkWeight, runWeight;
-let actions, settings;
+let actions, settings; // 动画动作数组
 let keyStates = {}; //存储按键信息
 function init() {
   container = document.getElementById('threeContainer')
@@ -66,7 +66,7 @@ function init() {
   controls.dampingFactor = 0.1;
   controls.target.set(0, 1, 0);
   const loader = new GLTFLoader().setPath("./threeJsModel/");
-  loader.load('Soldier.glb', function (gltf) {
+  loader.load('bot_action.glb', function (gltf) {
     console.log(gltf);
 
     model = gltf.scene;
@@ -96,7 +96,7 @@ function init() {
     mixer = new THREE.AnimationMixer(model);
 
     idleAction = mixer.clipAction(animations[0]);
-    walkAction = mixer.clipAction(animations[3]);
+    walkAction = mixer.clipAction(animations[2]);
     runAction = mixer.clipAction(animations[1]);
 
     actions = [idleAction, walkAction, runAction];
@@ -144,23 +144,62 @@ function eventListener() {
 const STATE = {
   IDLE: 'IDLE', // 停止状态
   WALK: 'WALK', // 走动状态
+  RUN: 'RUN', // 奔跑状态
   IDLE_TO_WALK: 'IDLE_TO_WALK', // 停止过渡到走动
   WALK_TO_IDLE: 'WALK_TO_IDLE', // 走动过渡到停止
+  WALK_TO_RUN: 'WALK_TO_RUN', // 走动过渡到奔跑
+  RUN_TO_WALK: 'RUN_TO_WALK', // 奔跑过渡到走动
 };
+let currentState = STATE.IDLE; // 当前状态
+let targetState = STATE.IDLE; // 目标状态
+let transitionTime = 0.5; // 过渡时间
+let transitionProgress = 0; // 过渡进度
 
-function keyStatesControls() {
-  // console.log(
-  //   keyStates
-  // );
-  if (keyStates['KeyW']) {
+function updateState() {
+  let isMoving = keyStates['KeyW'] || keyStates['KeyA'] || keyStates['KeyS'] || keyStates['KeyD'];
+  let isRunning = keyStates['ShiftLeft'] && isMoving
+  if (isMoving && currentState === STATE.IDLE) {
+    targetState = STATE.WALK;
+    currentState = STATE.IDLE_TO_WALK;
+    transitionProgress = 0;
+  } else if (!isMoving && currentState === STATE.WALK) {
+    targetState = STATE.IDLE;
+    currentState = STATE.WALK_TO_IDLE;
+    transitionProgress = 0;
+  } else if (isRunning && currentState === STATE.WALK) {
+    targetState = STATE.RUN;
+    currentState = STATE.WALK_TO_RUN;
+    transitionProgress = 0;
   }
-  if (keyStates['KeyA']) {
-  }
-  if (keyStates['KeyS']) {
-  }
-  if (keyStates['KeyD']) {
-  }
-  if (keyStates['ShiftLeft']) {
+}
+
+// 更新动画权重
+function updateAnimationWeights(delta) {
+  if (currentState === STATE.IDLE_TO_WALK) {
+    transitionProgress += delta / transitionTime;
+    if (transitionProgress >= 1) {
+      currentState = STATE.WALK;
+      transitionProgress = 1;
+    }
+    setWeight(idleAction, 1 - transitionProgress);
+    setWeight(walkAction, transitionProgress);
+  } else if (currentState === STATE.WALK_TO_IDLE) {
+    // transitionProgress += delta / transitionTime;
+    transitionProgress += delta * 0.9;
+    if (transitionProgress >= 1) {
+      currentState = STATE.IDLE;
+      transitionProgress = 1;
+    }
+    setWeight(walkAction, 1 - transitionProgress);
+    setWeight(idleAction, transitionProgress);
+  } else if (currentState === STATE.WALK_TO_RUN) {
+    transitionProgress += delta / transitionTime;
+    if (transitionProgress >= 1) {
+      currentState = STATE.RUN;
+      transitionProgress = 1;
+    }
+    setWeight(walkAction, 1 - transitionProgress);
+    setWeight(runAction, transitionProgress);
   }
 }
 
@@ -175,9 +214,10 @@ function animate() {
   if (mixer) {
     mixer.update(mixerUpdateDelta);
   }
+  updateState()
+  updateAnimationWeights(mixerUpdateDelta)
   controls.update();
   renderer.render(scene, camera);
-  keyStatesControls()
 }
 
 onMounted(() => {
