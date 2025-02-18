@@ -149,6 +149,7 @@ const STATE = {
   WALK_TO_IDLE: 'WALK_TO_IDLE', // 走动过渡到停止
   WALK_TO_RUN: 'WALK_TO_RUN', // 走动过渡到奔跑
   RUN_TO_WALK: 'RUN_TO_WALK', // 奔跑过渡到走动
+  RUN_TO_IDLE: 'RUN_TO_IDLE', // 奔跑过渡到走动
 };
 let currentState = STATE.IDLE; // 当前状态
 let targetState = STATE.IDLE; // 目标状态
@@ -158,48 +159,97 @@ let transitionProgress = 0; // 过渡进度
 function updateState() {
   let isMoving = keyStates['KeyW'] || keyStates['KeyA'] || keyStates['KeyS'] || keyStates['KeyD'];
   let isRunning = keyStates['ShiftLeft'] && isMoving
-  if (isMoving && currentState === STATE.IDLE) {
-    targetState = STATE.WALK;
-    currentState = STATE.IDLE_TO_WALK;
-    transitionProgress = 0;
-  } else if (!isMoving && currentState === STATE.WALK) {
-    targetState = STATE.IDLE;
-    currentState = STATE.WALK_TO_IDLE;
-    transitionProgress = 0;
-  } else if (isRunning && currentState === STATE.WALK) {
-    targetState = STATE.RUN;
-    currentState = STATE.WALK_TO_RUN;
-    transitionProgress = 0;
+  if (currentState === STATE.IDLE) {
+    if (isMoving) {
+      targetState = STATE.WALK;
+      currentState = STATE.IDLE_TO_WALK;
+      transitionProgress = 0;
+    }
+  }
+  if (currentState === STATE.WALK) {
+    if (isRunning) {
+      targetState = STATE.RUN;
+      currentState = STATE.WALK_TO_RUN;
+      transitionProgress = 0;
+    }
+    if (!isMoving) {
+      targetState = STATE.IDLE;
+      currentState = STATE.WALK_TO_IDLE;
+      transitionProgress = 0;
+    }
+  }
+  if (currentState === STATE.RUN) {
+    if (!isRunning) {
+      targetState = STATE.WALK;
+      currentState = STATE.RUN_TO_WALK;
+      transitionProgress = 0;
+    }
+    if (!isMoving) {
+      targetState = STATE.IDLE;
+      currentState = STATE.RUN_TO_IDLE;
+      transitionProgress = 0;
+    }
   }
 }
 
 // 更新动画权重
 function updateAnimationWeights(delta) {
+  transitionProgress += delta / transitionTime;
+  console.log(currentState);
+  
   if (currentState === STATE.IDLE_TO_WALK) {
-    transitionProgress += delta / transitionTime;
+    prepareCrossFade(idleAction, walkAction, 0.1);
     if (transitionProgress >= 1) {
       currentState = STATE.WALK;
       transitionProgress = 1;
     }
-    setWeight(idleAction, 1 - transitionProgress);
-    setWeight(walkAction, transitionProgress);
   } else if (currentState === STATE.WALK_TO_IDLE) {
-    // transitionProgress += delta / transitionTime;
-    transitionProgress += delta * 0.9;
+    prepareCrossFade(walkAction, idleAction, 0.1);
     if (transitionProgress >= 1) {
       currentState = STATE.IDLE;
       transitionProgress = 1;
     }
-    setWeight(walkAction, 1 - transitionProgress);
-    setWeight(idleAction, transitionProgress);
   } else if (currentState === STATE.WALK_TO_RUN) {
-    transitionProgress += delta / transitionTime;
+    prepareCrossFade(walkAction, runAction, 0.1);
     if (transitionProgress >= 1) {
       currentState = STATE.RUN;
       transitionProgress = 1;
     }
-    setWeight(walkAction, 1 - transitionProgress);
-    setWeight(runAction, transitionProgress);
+  } else if (currentState === STATE.RUN_TO_WALK) {
+    prepareCrossFade(runAction, walkAction, 0.5);
+    if (transitionProgress >= 1) {
+      currentState = STATE.WALK;
+      transitionProgress = 1;
+    }
+  }
+}
+
+
+function prepareCrossFade(startAction, endAction, defaultDuration) {
+  // const duration = setCrossFadeDuration(defaultDuration);
+  // singleStepMode = false;
+  let duration = defaultDuration
+  // actions.forEach(function (action) {
+  //   action.paused = false;
+  // });
+  if (startAction === idleAction) {
+    executeCrossFade(startAction, endAction, duration);
+  } else {
+    synchronizeCrossFade(startAction, endAction, duration);
+  }
+}
+function executeCrossFade(startAction, endAction, duration) {
+  setWeight(endAction, 1);
+  endAction.time = 0;
+  startAction.crossFadeTo(endAction, duration, true);
+}
+function synchronizeCrossFade(startAction, endAction, duration) {
+  mixer.addEventListener('loop', onLoopFinished);
+  function onLoopFinished(event) {
+    if (event.action === startAction) {
+      mixer.removeEventListener('loop', onLoopFinished);
+      executeCrossFade(startAction, endAction, duration);
+    }
   }
 }
 
